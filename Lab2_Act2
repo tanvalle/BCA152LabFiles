@@ -1,0 +1,207 @@
+/* USER CODE BEGIN Header */
+/**
+  ******************************************************************************
+  * @file           : main.c
+  * @brief          : Main program body
+  ******************************************************************************
+  * @attention
+  * Copyright (c) 2025 STMicroelectronics.
+  * All rights reserved.
+  ******************************************************************************
+  */
+/* USER CODE END Header */
+
+/* Includes ------------------------------------------------------------------*/
+#include "main.h"
+#include "stm32f4xx_hal.h"
+#include <string.h>
+
+/* LCD pin mapping */
+#define LCD_RS_GPIO_Port GPIOA
+#define LCD_RS_Pin GPIO_PIN_0
+#define LCD_E_GPIO_Port  GPIOA
+#define LCD_E_Pin        GPIO_PIN_1
+#define LCD_D4_GPIO_Port GPIOA
+#define LCD_D4_Pin       GPIO_PIN_2
+#define LCD_D5_GPIO_Port GPIOA
+#define LCD_D5_Pin       GPIO_PIN_3
+#define LCD_D6_GPIO_Port GPIOA
+#define LCD_D6_Pin       GPIO_PIN_4
+#define LCD_D7_GPIO_Port GPIOA
+#define LCD_D7_Pin       GPIO_PIN_5
+
+/* Function prototypes */
+void SystemClock_Config(void);
+static void MX_GPIO_Init(void);
+static void lcd_delay(uint32_t ms);
+static void lcd_enable(void);
+static void lcd_send4bit(uint8_t data);
+static void lcd_send_cmd(uint8_t cmd);
+static void lcd_send_data(uint8_t data);
+static void lcd_init(void);
+static void lcd_print(const char *str);
+
+/* -------------------------------------------------------------------------- */
+/* LCD Helper Functions */
+static void lcd_delay(uint32_t ms)
+{
+    HAL_Delay(ms);
+}
+
+static void lcd_enable(void)
+{
+    HAL_GPIO_WritePin(LCD_E_GPIO_Port, LCD_E_Pin, GPIO_PIN_SET);
+    lcd_delay(1);
+    HAL_GPIO_WritePin(LCD_E_GPIO_Port, LCD_E_Pin, GPIO_PIN_RESET);
+    lcd_delay(1);
+}
+
+static void lcd_send4bit(uint8_t data)
+{
+    HAL_GPIO_WritePin(LCD_D4_GPIO_Port, LCD_D4_Pin, (data >> 0) & 0x01);
+    HAL_GPIO_WritePin(LCD_D5_GPIO_Port, LCD_D5_Pin, (data >> 1) & 0x01);
+    HAL_GPIO_WritePin(LCD_D6_GPIO_Port, LCD_D6_Pin, (data >> 2) & 0x01);
+    HAL_GPIO_WritePin(LCD_D7_GPIO_Port, LCD_D7_Pin, (data >> 3) & 0x01);
+    lcd_enable();
+}
+
+static void lcd_send_cmd(uint8_t cmd)
+{
+    HAL_GPIO_WritePin(LCD_RS_GPIO_Port, LCD_RS_Pin, GPIO_PIN_RESET); // RS=0 for command
+    lcd_send4bit(cmd >> 4);   // high nibble
+    lcd_send4bit(cmd & 0x0F); // low nibble
+}
+
+static void lcd_send_data(uint8_t data)
+{
+    HAL_GPIO_WritePin(LCD_RS_GPIO_Port, LCD_RS_Pin, GPIO_PIN_SET); // RS=1 for data
+    lcd_send4bit(data >> 4);   // high nibble
+    lcd_send4bit(data & 0x0F); // low nibble
+}
+
+static void lcd_init(void)
+{
+    lcd_delay(50); // wait after power-up
+
+    lcd_send4bit(0x03);
+    lcd_delay(5);
+    lcd_send4bit(0x03);
+    lcd_delay(5);
+    lcd_send4bit(0x03);
+    lcd_delay(5);
+    lcd_send4bit(0x02); // set to 4-bit mode
+
+    lcd_send_cmd(0x28); // Function set: 4-bit, 2 lines
+    lcd_send_cmd(0x0C); // Display ON, Cursor OFF
+    lcd_send_cmd(0x06); // Entry mode
+    lcd_send_cmd(0x01); // Clear display
+    lcd_delay(2);
+}
+
+static void lcd_print(const char *str)
+{
+    while (*str)
+    {
+        lcd_send_data(*str++);
+    }
+}
+
+/* -------------------------------------------------------------------------- */
+/* MAIN PROGRAM */
+int main(void)
+{
+  HAL_Init();
+  SystemClock_Config();
+  MX_GPIO_Init();
+
+  lcd_init();
+
+  // Print NAME on first line
+  lcd_send_cmd(0x80); // Move to line 1, pos 0
+  lcd_print("Natalie Valle");
+
+  while (1)
+  {
+    // main loop
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* System Clock Configuration */
+void SystemClock_Config(void)
+{
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+
+  __HAL_RCC_PWR_CLK_ENABLE();
+  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
+
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* GPIO Initialization */
+static void MX_GPIO_Init(void)
+{
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+
+  /* Set PA0–PA5 as Output */
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|
+                           GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5, GPIO_PIN_RESET);
+
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_2|
+                        GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+}
+
+/* -------------------------------------------------------------------------- */
+void Error_Handler(void)
+{
+  __disable_irq();
+  while (1)
+  {
+  }
+}
+
+#ifdef  USE_FULL_ASSERT
+/**
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
+void assert_failed(uint8_t *file, uint32_t line)
+{
+  /* USER CODE BEGIN 6 */
+  /* User can add his own implementation to report the file name and line number,
+     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+  /* USER CODE END 6 */
+}
+#endif /* USE_FULL_ASSERT */
+
